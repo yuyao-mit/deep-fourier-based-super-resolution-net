@@ -68,13 +68,14 @@ class DFSR(nn.Module):
         
         # Generate coords and rel_coord
         if self.is_train:
-            jitter = torch.randn(n, 2, device=cur_lr.device) * self.jitter_std
+            jitter = torch.randn(n, 2) * self.jitter_std
         else:
-            jitter = torch.zeros(n, 2, device=cur_lr.device)
-        jitter_w=(jitter[:,0:1]/tw).repeat(1,th*tw).unsqueeze(-1)
-        jitter_h=(jitter[:,1:2]/th).repeat(1,th*tw).unsqueeze(-1)
-        coord = make_coord((th, tw), device=cur_lr.device).unsqueeze(0).repeat(n, 1, 1)
-        feat_coord = make_coord((ih, iw), device=cur_lr.device, flatten=False).permute(2, 0, 1).unsqueeze(0).expand(n, 2, ih, iw)
+            jitter = torch.zeros(n, 2)
+        jitter_w=(jitter[:,0:1]/tw).repeat(1,th*tw).unsqueeze(-1).to(cur_lr.device)
+        jitter_h=(jitter[:,1:2]/th).repeat(1,th*tw).unsqueeze(-1).to(cur_lr.device)
+
+        coord = make_coord((th, tw),device=cur_lr.device).unsqueeze(0).repeat(n, 1, 1)
+        feat_coord = make_coord((ih, iw),device=cur_lr.device, flatten=False).permute(2, 0, 1).unsqueeze(0).expand(n, 2, ih, iw)
         q_coord = F.grid_sample(feat_coord, coord.flip(-1).unsqueeze(1), mode='nearest', align_corners=False)[:, :, 0, :].permute(0, 2, 1)        
         rel_coord = coord - q_coord + torch.cat([jitter_h,jitter_w],dim=-1)
         rel_coord[:, :, 0] *= ih
@@ -95,15 +96,15 @@ class DFSR(nn.Module):
         q_coef = F.grid_sample(coef, coord.flip(-1).unsqueeze(1), mode='nearest', align_corners=False)[:, :, 0, :].view(n, -1, th, tw)
         q_freq = torch.stack(torch.split(freq, 2, dim=1), dim=1)
         q_freq = (q_freq * my_rel_coord.unsqueeze(1)).sum(2)
-  
+       
         if not isinstance(r, torch.Tensor):
-            r = torch.tensor(r, dtype=torch.float32, device=cur_lr.device)
+            r = torch.tensor(r, dtype=torch.float32,device=cur_lr.device)
         if r.ndim == 0:                 # 标量 ➜ (1,1,1,1) 再 repeat 到 batch
             mp_r = r.view(1, 1, 1, 1).repeat(n, 1, th, tw)
         else:                           # [B] ➜ (B,1,1,1) 再 repeat
             mp_r = r.view(-1, 1, 1, 1).repeat(1, 1, th, tw)
-        mp_r = r.view(1, 1, 1, 1).repeat(n, 1, th, tw).to(torch.float32)
-        inv_r = torch.ones(n, 1, th, tw, device=cur_lr.device, dtype=torch.float32) / mp_r
+        # mp_r = r.view(1, 1, 1, 1).repeat(n, 1, th, tw).to(torch.float32).to(cur_lr.device)
+        inv_r = torch.ones(n, 1, th, tw, dtype=torch.float32,device=cur_lr.device) / mp_r
         q_freq += self.phase(inv_r)
         q_freq = torch.cat([torch.cos(np.pi * q_freq), torch.sin(np.pi * q_freq)], dim=1)
 
@@ -123,7 +124,7 @@ class DFSRNet(L.LightningModule):
                  lr_hidc=32, hr_hidc=32, mlpc=64, jitter_std=0.001, lr=2e-4, weight_decay=1e-6):
         super().__init__(); self.save_hyperparameters()
         self.net = DFSR(is_train=True, lr_hidc=lr_hidc, hr_hidc=hr_hidc, mlpc=mlpc, jitter_std=jitter_std)
-        self.loss_fn = CombinatorialLoss(device=self.device, loss_weight=config.loss_weight, vgg_path=config.vgg_path_1)
+        self.loss_fn = CombinatorialLoss(loss_weight=config.loss_weight, vgg_path=config.vgg_path_1)
         
     def forward(self, lr_img, hr_feat, r):
         self.net.is_train = self.training

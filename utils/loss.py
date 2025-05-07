@@ -21,18 +21,14 @@ class Charbonnier_loss(nn.Module):
         return loss
 
 
-
-
-
-请看这段代码，我已经注册buffer了，我感觉是pred和label的问题？
 class PerceptualLoss(nn.Module):
-    def __init__(self, device, vgg_path='/home/gridsan/yyao/pretrained/vgg16-397923af.pth', use_gray_to_rgb=True, normalize=True):
+    def __init__(self, vgg_path, use_gray_to_rgb=True, normalize=True):
         super().__init__()
-        self.device = device
+        # self.device = device
         # self.model = vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1).features.eval().to(self.device)
         self.model = vgg16()
         self.model.load_state_dict(torch.load(vgg_path))
-        self.model = self.model.features.eval().to(self.device)
+        self.model = self.model.features.eval() #.to(self.device)
 
         self.use_gray_to_rgb = use_gray_to_rgb
         self.normalize = normalize
@@ -49,14 +45,14 @@ class PerceptualLoss(nn.Module):
         }
         self.target_layers = list(self.layer_mapping.values())
 
-        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(self.device)
-        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(self.device)
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)#.to(self.device)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)#.to(self.device)
         self.register_buffer('mean', mean)
         self.register_buffer('std', std)
 
     def forward(self, pred, label):
-        pred = pred.to(self.device)
-        label = label.to(self.device)
+        pred = pred#.to(self.device)
+        label = label#.to(self.device)
 
         if pred.shape[1] == 1 and self.use_gray_to_rgb:
             pred = pred.repeat(1, 3, 1, 1)
@@ -92,11 +88,10 @@ class PerceptualLoss(nn.Module):
 
         return feats_pred, feats_label
 
-
 class SpatialMaskLoss(nn.Module):
-    def __init__(self, device):
+    def __init__(self):
         super().__init__()
-        self.device = device
+        
 
     def forward(self, pred, label, mask):
         """
@@ -104,11 +99,14 @@ class SpatialMaskLoss(nn.Module):
         label: (N, C, H, W) - ground truth image
         mask: (N, 1, H, W) or (N, C, H, W) - spatial weight mask
         """
+        """
         pred = pred.to(self.device)
         label = label.to(self.device)
         mask = mask.to(self.device)
+        """
 
         # Ensure mask shape matches pred/label
+        mask = mask.float()
         if mask.shape[1] == 1 and pred.shape[1] > 1:
             mask = mask.expand_as(pred)
 
@@ -119,21 +117,21 @@ class SpatialMaskLoss(nn.Module):
 
 # loss.py
 class CombinatorialLoss(nn.Module):
-    def __init__(self, device, loss_weight, vgg_path, use_gray_to_rgb=True, window_size=11):
+    def __init__(self, loss_weight, vgg_path, use_gray_to_rgb=True, window_size=11):
         super().__init__()
-        self.device = device
+        
         self.loss_weight = loss_weight  # list or tuple of 4 weights
 
         self.use_gray_to_rgb = use_gray_to_rgb
         self.l1_loss_fn = nn.L1Loss()
-        self.perceptual_loss_fn = PerceptualLoss(device=self.device,vgg_path=vgg_path,use_gray_to_rgb=use_gray_to_rgb)
-        self.spatial_mask_loss_fn = SpatialMaskLoss(device=self.device)
+        self.perceptual_loss_fn = PerceptualLoss(vgg_path=vgg_path,use_gray_to_rgb=use_gray_to_rgb)
+        self.spatial_mask_loss_fn = SpatialMaskLoss()
         self.window_size = window_size
 
     def forward(self, pred, label, mask):
-        pred = pred.to(self.device)
-        label = label.to(self.device)
-        mask = mask.to(self.device)
+        pred = pred#.to(self.device)
+        label = label#.to(self.device)
+        mask = mask#.to(self.device)
 
         # 1. L1 loss
         l1 = self.l1_loss_fn(pred, label)
