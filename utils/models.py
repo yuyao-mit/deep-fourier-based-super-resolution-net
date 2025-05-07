@@ -120,11 +120,11 @@ class DFSR(nn.Module):
             return self.lastConv(ret + fused)
 
 class DFSRNet(L.LightningModule):
-    def __init__(self,
+    def __init__(self,vgg_path=config.vgg_path_1,
                  lr_hidc=32, hr_hidc=32, mlpc=64, jitter_std=0.001, lr=2e-4, weight_decay=1e-6):
         super().__init__(); self.save_hyperparameters()
         self.net = DFSR(is_train=True, lr_hidc=lr_hidc, hr_hidc=hr_hidc, mlpc=mlpc, jitter_std=jitter_std)
-        self.loss_fn = CombinatorialLoss(loss_weight=config.loss_weight, vgg_path=config.vgg_path_1)
+        self.loss_fn = CombinatorialLoss(loss_weight=config.loss_weight, vgg_path=vgg_path)
         
     def forward(self, lr_img, hr_feat, r):
         self.net.is_train = self.training
