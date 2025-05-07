@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -J dfsr
-#SBATCH -N 4
+#SBATCH -N 2
 #SBATCH --ntasks-per-node=4
-#SBATCH -p rtx
+#SBATCH -p rtx-dev
 #SBATCH -t 48:00:00
 #SBATCH --exclusive
 
@@ -20,7 +20,7 @@ module load python3/3.9.2
 source ~/.bashrc
 
 srun python3 train_dfsr.py \
-    --nodes 4 \
+    --nodes 2 \
     --gpus 4 \
-    --epochs 50000
+    --epochs 100000
 

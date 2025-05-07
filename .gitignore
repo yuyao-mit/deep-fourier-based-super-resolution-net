@@ -175,3 +175,8 @@ cython_debug/
 
 # checkpoints
 *checkpoints*
+
+# slurm output
+
+*.out
+*out*
