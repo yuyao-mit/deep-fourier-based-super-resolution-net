@@ -1,4 +1,4 @@
-#final_net.py
+# models.py
 import os
 import torch
 import torch.nn as nn
@@ -7,9 +7,12 @@ import numpy as np
 import config 
 from tools import *
 from blocks import * 
+import lightning as L
+from loss import CombinatorialLoss
+
 
 class DFSR(nn.Module):
-    """Deep Fourier Based Super Resolution Net"""
+    """Deep Fourier Based Super Resolution"""
     def __init__(self, is_train, lr_hidc=32, hr_hidc=32, mlpc=64, jitter_std=0.001):
         super(DFSR, self).__init__()
         self.is_train = is_train
@@ -110,3 +113,35 @@ class DFSR(nn.Module):
             return self.lastConv(F.pixel_shuffle(ret, 2) + F.pixel_shuffle(fused, 2))
         else:
             return self.lastConv(ret + fused)
+
+我做了一些改动:（1）修改部分变量名称（2）我想让r在训练的时候显式地输入，因为我要考虑不同缩放尺度的数据集，所以训练的时候需要间隔一段时间就改变r，比如从2变成4/8/16   
+但是DFSRNet还是有点问题，请你继续修改这个代码：
+class DFSRNet(L.LightningModule):
+    def __init__(self, lr_hidc=32, hr_hidc=32, mlpc=64, jitter_std=0.001, lr=2e-4):
+        super().__init__(); 
+        self.save_hyperparameters()
+        self.net = DFSR(is_train=True, lr_hidc, hr_hidc, mlpc, jitter_std)
+        self.loss_fn = CombinatorialLoss(device=self.device,
+                                         loss_weight=config.loss_weight,
+                                         vgg_path=config.vgg_path_1)
+
+    def forward(self, cur_lr, cur_hr, r):
+        self.net.is_train = self.training
+        return self.net(cur_lr, cur_hr, r)
+
+    def _step(self, batch, stage):
+        cur_lr, cur_hr, mask = batch
+        pred   = self(cur_lr, cur_hr, r)
+        label = cur_hr[:, :1]    
+        loss   = self.loss_fn(pred=pred, label=label, mask=mask)
+        self.log(f"{stage}/loss", loss, prog_bar=(stage!="train"))
+        return loss
+
+    def training_step  (self, b, i): return self._step(b, "train")
+    def validation_step(self, b, i):             self._step(b, "val")
+    def test_step      (self, b, i):             self._step(b, "test")
+
+    def configure_optimizers(self):
+        return torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
+
+

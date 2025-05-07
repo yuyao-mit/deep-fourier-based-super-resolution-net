@@ -1,8 +1,6 @@
-# nano_dataloader.py
-"""
-NanoDataLoader
---------------
+# loader.py
 
+"""
 A PyTorch‑Lightning DataModule for nanoscale grayscale images (1700 × 1600).
 Outputs for every mini‑batch:
   • LR tensor  [B, 3, H//r, W//r]
@@ -10,13 +8,9 @@ Outputs for every mini‑batch:
   • Fourier mask tensor [B, 1, H, W]
 """
 
-# ──────────────────────────────────────────────────────────────────
-# Imports
-# ──────────────────────────────────────────────────────────────────
 import os
 import random
 from typing import List, Optional
-
 import cv2 as cv
 import lightning as L
 import numpy as np
@@ -25,9 +19,7 @@ import torch.nn.functional as F
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, random_split
 
-# ──────────────────────────────────────────────────────────────────
-# -----  Mask‑generation helpers (single‑sample versions)  ---------
-# ──────────────────────────────────────────────────────────────────
+###################### HELPERS #############################
 def _pil_to_np_gray(pil: Image.Image) -> np.ndarray:
     """PIL → float32 numpy array in [0,1], shape (H, W)."""
     arr = np.asarray(pil.convert("L"), dtype=np.float32)
@@ -66,9 +58,8 @@ def _fourier(gray: np.ndarray, perc: int = 95) -> np.ndarray:
     img_back = cv.normalize(img_back, None, 0, 1, cv.NORM_MINMAX)
     return (img_back > 0.1).astype(np.float32)
 
-# ──────────────────────────────────────────────────────────────────
-# -------------------      Dataset Class       --------------------
-# ──────────────────────────────────────────────────────────────────
+
+###################### DATASET #############################
 class _NanoDataset(Dataset):
     """
     单张灰度 TIFF/PNG/JPG/EXR → LR / HR‑8c / Fourier mask
@@ -80,8 +71,8 @@ class _NanoDataset(Dataset):
         super().__init__()
         self.image_paths = image_paths
         self.r = r
-        self.hr_size = high_res          # e.g. 256
-        self.crop_origin_max = 1600 - high_res  # 1600×1600 after trimming bottom
+        self.hr_size = high_res       
+        self.crop_origin_max = 1600 - high_res  # 1600×1600
 
     # ──────────────────────────────────────────
     def __len__(self):
@@ -159,7 +150,7 @@ class NanoDataLoader(L.LightningDataModule):
                  root_dir: str,
                  r: int,
                  high_res: int = 256,
-                 batch_size: int = 16,
+                 batch_size: int = 8,
                  num_workers: int = 8,
                  seed: int = 42):
         super().__init__()
@@ -174,7 +165,7 @@ class NanoDataLoader(L.LightningDataModule):
             if f.lower().endswith(self.SUPPORTED_EXT)
         ]
         if not self.image_paths:
-            raise FileNotFoundError("未找到任何支持的图像文件")
+            raise FileNotFoundError("NO IMAGE FOUND")
 
         # 数据集对象将在 setup() 创建
         self.train_ds = self.val_ds = self.test_ds = None

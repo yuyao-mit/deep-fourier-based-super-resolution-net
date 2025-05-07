@@ -114,14 +114,14 @@ class SpatialMaskLoss(nn.Module):
 
 # loss.py
 class CombinatorialLoss(nn.Module):
-    def __init__(self, device, loss_weight, vgg_path='/home/gridsan/yyao/pretrained/vgg16-397923af.pth', use_gray_to_rgb=True, window_size=11):
+    def __init__(self, device, loss_weight, vgg_path, use_gray_to_rgb=True, window_size=11):
         super().__init__()
         self.device = device
         self.loss_weight = loss_weight  # list or tuple of 4 weights
 
         self.use_gray_to_rgb = use_gray_to_rgb
         self.l1_loss_fn = nn.L1Loss()
-        self.perceptual_loss_fn = PerceptualLoss(device=self.device,vgg_path=vgg_path use_gray_to_rgb=use_gray_to_rgb)
+        self.perceptual_loss_fn = PerceptualLoss(device=self.device,vgg_path=vgg_path,use_gray_to_rgb=use_gray_to_rgb)
         self.spatial_mask_loss_fn = SpatialMaskLoss(device=self.device)
         self.window_size = window_size
 
