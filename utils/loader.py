@@ -1,3 +1,5 @@
+请检查一下我的loader.py有没有问题，尤其注意这个模块能否动态切换多尺度数据：
+
 # loader.py
 
 """
@@ -111,6 +113,7 @@ class _NanoDataset(Dataset):
                              fourier_m], axis=0)   # [8,H,W]
 
         # ---- 低分辨率 downsample ----
+        r   = random.choice([2,4,6,8,10,16]) 
         lr_h = self.hr_size // self.r
         lr_w = lr_h
         lr = cv.resize(gray_np, (lr_w, lr_h), interpolation=cv.INTER_AREA)
@@ -121,7 +124,7 @@ class _NanoDataset(Dataset):
         hr_t  = torch.from_numpy(hr ).float()
         f_t   = torch.from_numpy(fourier_m).float()
 
-        return lr_t, hr_t, f_t
+        return lr_t, hr_t, f_t, torch.tensor(self.r, dtype=torch.float32)
 
 # ──────────────────────────────────────────────────────────────────
 # ----------------  Lightning DataModule  -------------------------

@@ -114,34 +114,46 @@ class DFSR(nn.Module):
         else:
             return self.lastConv(ret + fused)
 
-我做了一些改动:（1）修改部分变量名称（2）我想让r在训练的时候显式地输入，因为我要考虑不同缩放尺度的数据集，所以训练的时候需要间隔一段时间就改变r，比如从2变成4/8/16   
-但是DFSRNet还是有点问题，请你继续修改这个代码：
+
+
 class DFSRNet(L.LightningModule):
-    def __init__(self, lr_hidc=32, hr_hidc=32, mlpc=64, jitter_std=0.001, lr=2e-4):
-        super().__init__(); 
-        self.save_hyperparameters()
-        self.net = DFSR(is_train=True, lr_hidc, hr_hidc, mlpc, jitter_std)
+    def __init__(self,
+                 lr_hidc=32, hr_hidc=32, mlpc=64, jitter_std=0.001,
+                 lr=2e-4, weight_decay=1e-6):
+        super().__init__(); self.save_hyperparameters()
+        self.net = DFSR(is_train=True, lr_hidc=lr_hidc, hr_hidc=hr_hidc,
+                        mlpc=mlpc, jitter_std=jitter_std)
         self.loss_fn = CombinatorialLoss(device=self.device,
                                          loss_weight=config.loss_weight,
                                          vgg_path=config.vgg_path_1)
 
-    def forward(self, cur_lr, cur_hr, r):
+    # ---------- forward ----------
+    def forward(self, lr_img, hr_feat, r):
         self.net.is_train = self.training
-        return self.net(cur_lr, cur_hr, r)
+        return self.net(lr_img, hr_feat, r)
 
+    # ---------- shared step ----------
     def _step(self, batch, stage):
-        cur_lr, cur_hr, mask = batch
-        pred   = self(cur_lr, cur_hr, r)
-        label = cur_hr[:, :1]    
-        loss   = self.loss_fn(pred=pred, label=label, mask=mask)
-        self.log(f"{stage}/loss", loss, prog_bar=(stage!="train"))
+        lr_img, hr_feat, mask, r = batch
+        pred  = self(lr_img, hr_feat, r)
+        loss  = self.loss_fn(pred, hr_feat[:, :1], mask)
+        self.log(f"{stage}/loss", loss, prog_bar=(stage != "train"))
         return loss
 
-    def training_step  (self, b, i): return self._step(b, "train")
-    def validation_step(self, b, i):             self._step(b, "val")
-    def test_step      (self, b, i):             self._step(b, "test")
+    def training_step  (self, b, _): return self._step(b, "train")
+    def validation_step(self, b, _):       self._step(b, "val")
+    def test_step      (self, b, _):       self._step(b, "test")
 
+    # ---------- optimizer ----------
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        # 常用做法：不给 bias / norm 加 weight_decay
+        decay, no_decay = [], []
+        for n, p in self.named_parameters():
+            (no_decay if n.endswith(("bias", "weight_g", "weight_v")) or "norm" in n.lower()
+             else decay).append(p)
+        param_groups = [{"params": decay,     "weight_decay": self.hparams.weight_decay},
+                        {"params": no_decay,  "weight_decay": 0.0}]
+        return torch.optim.AdamW(param_groups, lr=self.hparams.lr)
+
 
 
