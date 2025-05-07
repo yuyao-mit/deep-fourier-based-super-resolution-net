@@ -55,7 +55,7 @@ def main():
         strategy="ddp",                  # 多机多卡
         callbacks=[ckpt_cb],
         logger=logger,
-        enable_progress_bar=False,
+        enable_progress_bar=True,
         log_every_n_steps=1
     )
 
