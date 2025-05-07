@@ -95,9 +95,13 @@ class DFSR(nn.Module):
         q_coef = F.grid_sample(coef, coord.flip(-1).unsqueeze(1), mode='nearest', align_corners=False)[:, :, 0, :].view(n, -1, th, tw)
         q_freq = torch.stack(torch.split(freq, 2, dim=1), dim=1)
         q_freq = (q_freq * my_rel_coord.unsqueeze(1)).sum(2)
-        
+  
         if not isinstance(r, torch.Tensor):
             r = torch.tensor(r, dtype=torch.float32, device=cur_lr.device)
+        if r.ndim == 0:                 # 标量 ➜ (1,1,1,1) 再 repeat 到 batch
+            mp_r = r.view(1, 1, 1, 1).repeat(n, 1, th, tw)
+        else:                           # [B] ➜ (B,1,1,1) 再 repeat
+            mp_r = r.view(-1, 1, 1, 1).repeat(1, 1, th, tw)
         mp_r = r.view(1, 1, 1, 1).repeat(n, 1, th, tw).to(torch.float32)
         inv_r = torch.ones(n, 1, th, tw, device=cur_lr.device, dtype=torch.float32) / mp_r
         q_freq += self.phase(inv_r)
@@ -114,29 +118,21 @@ class DFSR(nn.Module):
         else:
             return self.lastConv(ret + fused)
 
-
-
 class DFSRNet(L.LightningModule):
     def __init__(self,
-                 lr_hidc=32, hr_hidc=32, mlpc=64, jitter_std=0.001,
-                 lr=2e-4, weight_decay=1e-6):
+                 lr_hidc=32, hr_hidc=32, mlpc=64, jitter_std=0.001, lr=2e-4, weight_decay=1e-6):
         super().__init__(); self.save_hyperparameters()
-        self.net = DFSR(is_train=True, lr_hidc=lr_hidc, hr_hidc=hr_hidc,
-                        mlpc=mlpc, jitter_std=jitter_std)
-        self.loss_fn = CombinatorialLoss(device=self.device,
-                                         loss_weight=config.loss_weight,
-                                         vgg_path=config.vgg_path_1)
-
-    # ---------- forward ----------
+        self.net = DFSR(is_train=True, lr_hidc=lr_hidc, hr_hidc=hr_hidc, mlpc=mlpc, jitter_std=jitter_std)
+        self.loss_fn = CombinatorialLoss(device=self.device, loss_weight=config.loss_weight, vgg_path=config.vgg_path_1)
+        
     def forward(self, lr_img, hr_feat, r):
         self.net.is_train = self.training
         return self.net(lr_img, hr_feat, r)
-
-    # ---------- shared step ----------
+        
     def _step(self, batch, stage):
         lr_img, hr_feat, mask, r = batch
         pred  = self(lr_img, hr_feat, r)
-        loss  = self.loss_fn(pred, hr_feat[:, :1], mask)
+        loss  = self.loss_fn(pred=pred, label=hr_feat[:, :1], mask=mask)
         self.log(f"{stage}/loss", loss, prog_bar=(stage != "train"))
         return loss
 
@@ -144,16 +140,21 @@ class DFSRNet(L.LightningModule):
     def validation_step(self, b, _):       self._step(b, "val")
     def test_step      (self, b, _):       self._step(b, "test")
 
-    # ---------- optimizer ----------
     def configure_optimizers(self):
-        # 常用做法：不给 bias / norm 加 weight_decay
+        # 将 bias / norm 层剔除 weight‑decay
         decay, no_decay = [], []
         for n, p in self.named_parameters():
             (no_decay if n.endswith(("bias", "weight_g", "weight_v")) or "norm" in n.lower()
              else decay).append(p)
-        param_groups = [{"params": decay,     "weight_decay": self.hparams.weight_decay},
-                        {"params": no_decay,  "weight_decay": 0.0}]
-        return torch.optim.AdamW(param_groups, lr=self.hparams.lr)
 
+        param_groups = [
+            {"params": decay,    "weight_decay": self.hparams.weight_decay},
+            {"params": no_decay, "weight_decay": 0.0},
+        ]
 
+        opt = torch.optim.Adam(param_groups, lr=1e-4, betas=(0.9, 0.999))
 
+        # 每 500 个 epoch 将 lr * 0.5
+        sched = torch.optim.lr_scheduler.StepLR(opt, step_size=500, gamma=0.5)
+
+        return {"optimizer": opt, "lr_scheduler": sched}

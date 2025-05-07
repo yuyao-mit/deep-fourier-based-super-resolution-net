@@ -20,6 +20,11 @@ class Charbonnier_loss(nn.Module):
         loss = torch.mean(torch.sqrt(diff * diff + self.epsilon))
         return loss
 
+
+
+
+
+请看这段代码，我已经注册buffer了，我感觉是pred和label的问题？
 class PerceptualLoss(nn.Module):
     def __init__(self, device, vgg_path='/home/gridsan/yyao/pretrained/vgg16-397923af.pth', use_gray_to_rgb=True, normalize=True):
         super().__init__()

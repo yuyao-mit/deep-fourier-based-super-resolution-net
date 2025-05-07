@@ -101,7 +101,7 @@ class _NanoDataset(Dataset):
         lr_t   = torch.from_numpy(lr_3).float()
         hr_t   = torch.from_numpy(hr ).float()
         mask_t = torch.from_numpy(_fourier(gray_np)[None]).float()
-        return lr_t, hr_t, mask_t, torch.tensor(self.r, dtype=torch.float32)
+        return lr_t, hr_t, mask_t, self.r #torch.tensor(self.r, dtype=torch.float32)
 
 ###################### LIGHTNING DATAMODULE #####################
 class NanoDataLoader(L.LightningDataModule):
