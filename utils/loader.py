@@ -1,4 +1,4 @@
-请检查一下我的loader.py有没有问题，尤其注意这个模块能否动态切换多尺度数据：
+
 
 # loader.py
 
@@ -8,6 +8,7 @@ Outputs for every mini‑batch:
   • LR tensor  [B, 3, H//r, W//r]
   • HR tensor  [B, 8, H, W]          (channels: 3×gray, albedo, gaussian, sobel‑depth, normal‑variation, fourier)
   • Fourier mask tensor [B, 1, H, W]
+  • Downsample scale r
 """
 
 import os
@@ -19,7 +20,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset, random_split,Sampler
 
 ###################### HELPERS #############################
 def _pil_to_np_gray(pil: Image.Image) -> np.ndarray:
@@ -65,93 +66,85 @@ def _fourier(gray: np.ndarray, perc: int = 95) -> np.ndarray:
 class _NanoDataset(Dataset):
     """
     单张灰度 TIFF/PNG/JPG/EXR → LR / HR‑8c / Fourier mask
+    每个样本在 epoch 内固定一个随机 r，epoch 之间可重新分配。
     """
     def __init__(self,
                  image_paths: List[str],
-                 r: int,
+                 r_list: List[int],
                  high_res: int):
         super().__init__()
         self.image_paths = image_paths
-        self.r = r
-        self.hr_size = high_res       
-        self.crop_origin_max = 1600 - high_res  # 1600×1600
+        self.r_list = r_list
+        self.hr_size = high_res
+        self.crop_origin_max = 1600 - high_res
+        self.assign_random_r()                       # 初始分配 r
 
-    # ──────────────────────────────────────────
-    def __len__(self):
-        return len(self.image_paths)
+    # ---------- 重新随机分配 r（训练每个 epoch 调用一次） ----------
+    def assign_random_r(self):
+        self.sample_r = [random.choice(self.r_list) for _ in self.image_paths]
 
-    # ──────────────────────────────────────────
+    def __len__(self): return len(self.image_paths)
+
     def __getitem__(self, idx):
+        r = self.sample_r[idx]
+
         # ---- 读图 & 裁剪底部 ----
-        path = self.image_paths[idx]
-        pil = Image.open(path)                     # 灰度 / 彩色皆可
-        pil = pil.convert("L")                    # 强制灰度
-        pil = pil.crop((0, 0, 1600, 1600))        # 去掉底部 100 行 (1700→1600)
+        pil = Image.open(self.image_paths[idx]).convert("L").crop((0, 0, 1600, 1600))
 
         # ---- 随机 crop high_res×high_res ----
-        x0 = random.randint(0, self.crop_origin_max)
-        y0 = random.randint(0, self.crop_origin_max)
-        pil_patch = pil.crop((x0, y0, x0 + self.hr_size, y0 + self.hr_size))
+        x0, y0 = random.randint(0, self.crop_origin_max), random.randint(0, self.crop_origin_max)
+        gray_np = _pil_to_np_gray(pil.crop((x0, y0, x0 + self.hr_size, y0 + self.hr_size)))
 
-        gray_np = _pil_to_np_gray(pil_patch)       # (H, W) ∈ [0,1]
+        # ---- HR‑8c ----
+        gray3 = np.stack([gray_np] * 3)
+        hr = np.concatenate([gray3,
+                             _albedo(gray_np)[None],
+                             _gaussian(gray_np)[None],
+                             _sobel_magnitude(gray_np)[None],
+                             _normal_variation(gray_np)[None],
+                             _fourier(gray_np)[None]], 0)
 
-        # ---- 生成 3‑通道 Gray & 各种 mask ----
-        gray_3 = np.stack([gray_np]*3, axis=0)     # [3,H,W]
+        # ---- LR downsample ----
+        lr_sz = self.hr_size // r
+        lr_np = cv.resize(gray_np, (lr_sz, lr_sz), interpolation=cv.INTER_AREA)
+        lr_3 = np.stack([lr_np] * 3)
 
-        albedo     = _albedo(gray_np)[None, ...]
-        gaussian   = _gaussian(gray_np)[None, ...]
-        sobel_d    = _sobel_magnitude(gray_np)[None, ...]
-        normal_var = _normal_variation(gray_np)[None, ...]
-        fourier_m  = _fourier(gray_np)[None, ...]
+        # ---- tensors ----
+        lr_t = torch.from_numpy(lr_3).float()
+        hr_t = torch.from_numpy(hr).float()
+        mask_t = torch.from_numpy(_fourier(gray_np)[None]).float()
 
-        # HR‑8 通道
-        hr = np.concatenate([gray_3,
-                             albedo,
-                             gaussian,
-                             sobel_d,
-                             normal_var,
-                             fourier_m], axis=0)   # [8,H,W]
+        return lr_t, hr_t, mask_t, torch.tensor(r, dtype=torch.float32)
 
-        # ---- 低分辨率 downsample ----
-        r   = random.choice([2,4,6,8,10,16]) 
-        lr_h = self.hr_size // self.r
-        lr_w = lr_h
-        lr = cv.resize(gray_np, (lr_w, lr_h), interpolation=cv.INTER_AREA)
-        lr_3 = np.stack([lr]*3, axis=0)            # [3,lr_h,lr_w]
+###################### BATCH SAMPLER（同 r 分桶） ################
+class SameRBatchSampler(Sampler[list]):
+    def __init__(self, dataset: _NanoDataset, batch_size: int, drop_last: bool = True):
+        self.ds, self.bs, self.drop_last = dataset, batch_size, drop_last
 
-        # ---- 转 Tensor ----
-        lr_t  = torch.from_numpy(lr_3).float()
-        hr_t  = torch.from_numpy(hr ).float()
-        f_t   = torch.from_numpy(fourier_m).float()
+    def __iter__(self):
+        buckets = {r: [] for r in self.ds.r_list}
+        indices = torch.randperm(len(self.ds)).tolist()
+        for idx in indices:
+            r = self.ds.sample_r[idx]
+            buckets[r].append(idx)
+            if len(buckets[r]) == self.bs:
+                yield buckets[r]
+                buckets[r] = []
+        if not self.drop_last:
+            for bucket in buckets.values():
+                if bucket:
+                    yield bucket
 
-        return lr_t, hr_t, f_t, torch.tensor(self.r, dtype=torch.float32)
+    def __len__(self):
+        return len(self.ds) // self.bs
 
-# ──────────────────────────────────────────────────────────────────
-# ----------------  Lightning DataModule  -------------------------
-# ──────────────────────────────────────────────────────────────────
+###################### LIGHTNING DATAMODULE #####################
 class NanoDataLoader(L.LightningDataModule):
-    """
-    Parameters
-    ----------
-    root_dir : str
-        目录，包含所有图像文件 (tif/png/jpg/exr)。
-    r : int
-        下采样比例 (scale factor)。
-    high_res : int, default=256
-        HR patch 边长。
-    batch_size : int
-        批大小。
-    num_workers : int
-        DataLoader workers.
-    seed : int
-        随机划分 seed。
-    """
-
     SUPPORTED_EXT = (".tif", ".tiff", ".png", ".jpg", ".jpeg", ".exr")
 
     def __init__(self,
                  root_dir: str,
-                 r: int,
+                 r_list: List[int] = (2, 4, 8, 16),
                  high_res: int = 256,
                  batch_size: int = 8,
                  num_workers: int = 8,
@@ -162,42 +155,36 @@ class NanoDataLoader(L.LightningDataModule):
         if not os.path.isdir(root_dir):
             raise FileNotFoundError(f"{root_dir} 不存在")
 
-        self.image_paths = [
-            os.path.join(root_dir, f)
-            for f in os.listdir(root_dir)
-            if f.lower().endswith(self.SUPPORTED_EXT)
-        ]
+        self.image_paths = [os.path.join(root_dir, f)
+                            for f in os.listdir(root_dir)
+                            if f.lower().endswith(self.SUPPORTED_EXT)]
         if not self.image_paths:
             raise FileNotFoundError("NO IMAGE FOUND")
 
-        # 数据集对象将在 setup() 创建
-        self.train_ds = self.val_ds = self.test_ds = None
-
-    # ──────────────────────────────────────────
+    # ---------- split ----------
     def setup(self, stage: Optional[str] = None):
-        # 按 8:1:1 划分
-        generator = torch.Generator().manual_seed(self.hparams.seed)
-        full_ds = _NanoDataset(self.image_paths,
-                               self.hparams.r,
+        ds_full = _NanoDataset(self.image_paths,
+                               self.hparams.r_list,
                                self.hparams.high_res)
-        n_total = len(full_ds)
-        n_train = int(0.8 * n_total)
-        n_val   = int(0.1 * n_total)
-        n_test  = n_total - n_train - n_val
-
+        n_total = len(ds_full)
+        n_tr, n_val = int(0.8 * n_total), int(0.1 * n_total)
+        n_test = n_total - n_tr - n_val
+        g = torch.Generator().manual_seed(self.hparams.seed)
         self.train_ds, self.val_ds, self.test_ds = random_split(
-            full_ds, [n_train, n_val, n_test], generator=generator)
+            ds_full, [n_tr, n_val, n_test], generator=g)
 
-    # ──────────────────────────────────────────
-    def _make_loader(self, ds, shuffle):
-        return DataLoader(
-            ds,
-            batch_size  = self.hparams.batch_size,
-            shuffle     = shuffle,
-            num_workers = self.hparams.num_workers,
-            pin_memory  = True,
-        )
+    # ---------- loader helper ----------
+    def _loader(self, ds, shuffle):
+        sampler = SameRBatchSampler(ds, self.hparams.batch_size, drop_last=shuffle)
+        return DataLoader(ds,
+                          batch_sampler=sampler,
+                          num_workers=self.hparams.num_workers,
+                          pin_memory=True)
 
-    def train_dataloader(self): return self._make_loader(self.train_ds, True)
-    def val_dataloader  (self): return self._make_loader(self.val_ds,   False)
-    def test_dataloader (self): return self._make_loader(self.test_ds,  False)
+    def train_dataloader(self): return self._loader(self.train_ds, True)
+    def val_dataloader  (self): return self._loader(self.val_ds,   False)
+    def test_dataloader (self): return self._loader(self.test_ds,  False)
+
+    # ---------- 每个 epoch 重新随机分配 r ----------
+    def on_train_epoch_start(self):
+        self.train_ds.dataset.assign_random_r()
