@@ -20,7 +20,7 @@ module load python3/3.9.2
 source ~/.bashrc
 
 srun python3 train_dfsr.py \
-    --nodes 2 \
+    --nodes 4 \
     --gpus 4 \
-    --epochs 500
+    --epochs 50000
 

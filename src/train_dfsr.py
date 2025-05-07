@@ -26,7 +26,7 @@ def main():
         root_dir=root_dir,
         r_list=[2, 4, 6, 8, 12],
         high_res=240,
-        batch_size=8,
+        batch_size=16,
         num_workers=4
     )
 
