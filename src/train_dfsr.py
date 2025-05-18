@@ -39,11 +39,7 @@ def main():
         dirpath="checkpoints",
         filename="dfsr_{epoch:07d}",
         save_top_k=-1,                   # 保存所有
-<<<<<<< HEAD
-        every_n_epochs=10      
-=======
-        every_n_epochs=100      
->>>>>>> 8d978ab8825a96c18fda3e5ab7dd8474f08a18f7
+        every_n_epochs=10
     )
 
     # ---------- logger ----------

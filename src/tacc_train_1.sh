@@ -2,7 +2,6 @@
 #SBATCH -J dfsr
 #SBATCH -N 2
 #SBATCH --ntasks-per-node=4
-#SBATCH --gpus-per-node=4
 #SBATCH -p rtx-dev
 #SBATCH -t 1:00:00
 #SBATCH --exclusive
