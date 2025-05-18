@@ -1,0 +1,70 @@
+
+The following have been reloaded with a version change:
+  1) python3/3.7.0 => python3/3.9.2
+
+Traceback (most recent call last):
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/train_dfsr.py", line 8, in <module>
+Traceback (most recent call last):
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/train_dfsr.py", line 8, in <module>
+Traceback (most recent call last):
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/train_dfsr.py", line 8, in <module>
+    from utils.models import DFSRNet
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/../utils/models.py", line 11, in <module>
+    from utils.models import DFSRNet
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/../utils/models.py", line 11, in <module>
+Traceback (most recent call last):
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/train_dfsr.py", line 8, in <module>
+    from tools import *
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/utils/tools.py", line 9, in <module>
+    from tools import *
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/utils/tools.py", line 9, in <module>
+Traceback (most recent call last):
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/train_dfsr.py", line 8, in <module>
+    from utils.models import DFSRNet
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/../utils/models.py", line 11, in <module>
+    import cv2 as cv
+ModuleNotFoundError: No module named 'cv2'
+    import cv2 as cv
+ModuleNotFoundError: No module named 'cv2'
+Traceback (most recent call last):
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/train_dfsr.py", line 8, in <module>
+    from utils.models import DFSRNet
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/../utils/models.py", line 11, in <module>
+    from utils.models import DFSRNet
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/../utils/models.py", line 11, in <module>
+    from tools import *
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/utils/tools.py", line 9, in <module>
+Traceback (most recent call last):
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/train_dfsr.py", line 8, in <module>
+    from tools import *
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/utils/tools.py", line 9, in <module>
+Traceback (most recent call last):
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/train_dfsr.py", line 8, in <module>
+    import cv2 as cv
+ModuleNotFoundError: No module named 'cv2'
+    from utils.models import DFSRNet
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/../utils/models.py", line 11, in <module>
+    from utils.models import DFSRNet
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/../utils/models.py", line 11, in <module>
+    import cv2 as cv
+ModuleNotFoundError: No module named 'cv2'
+    from tools import *
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/utils/tools.py", line 9, in <module>
+    from tools import *
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/utils/tools.py", line 9, in <module>
+    import cv2 as cv
+ModuleNotFoundError: No module named 'cv2'
+    import cv2 as cv
+ModuleNotFoundError: No module named 'cv2'
+    from utils.models import DFSRNet
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/src/../utils/models.py", line 11, in <module>
+    from tools import *
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/utils/tools.py", line 9, in <module>
+    from tools import *
+  File "/work2/10214/yu_yao/frontera/deep-fourier-based-super-resolution-net/utils/tools.py", line 9, in <module>
+    import cv2 as cv
+ModuleNotFoundError: No module named 'cv2'
+    import cv2 as cv
+ModuleNotFoundError: No module named 'cv2'
+srun: error: c196-032: tasks 4-7: Exited with exit code 1
+srun: error: c196-031: tasks 0-3: Exited with exit code 1
