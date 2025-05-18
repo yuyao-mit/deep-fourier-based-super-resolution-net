@@ -2,7 +2,7 @@
 #SBATCH -J dfsr
 #SBATCH -N 2
 #SBATCH --ntasks-per-node=4
-#SBATCH -p rtx-dev
+#SBATCH -p rtx
 #SBATCH -t 48:00:00
 #SBATCH --exclusive
 

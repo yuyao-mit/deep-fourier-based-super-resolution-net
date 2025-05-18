@@ -39,7 +39,11 @@ def main():
         dirpath="checkpoints",
         filename="dfsr_{epoch:07d}",
         save_top_k=-1,                   # 保存所有
+<<<<<<< HEAD
         every_n_epochs=10      
+=======
+        every_n_epochs=100      
+>>>>>>> 8d978ab8825a96c18fda3e5ab7dd8474f08a18f7
     )
 
     # ---------- logger ----------
@@ -55,8 +59,8 @@ def main():
         strategy="ddp",                  # 多机多卡
         callbacks=[ckpt_cb],
         logger=logger,
-        enable_progress_bar=True,
-        log_every_n_steps=1
+        enable_progress_bar=False,
+        log_every_n_steps=100
     )
 
     trainer.fit(model, datamodule=dm)
