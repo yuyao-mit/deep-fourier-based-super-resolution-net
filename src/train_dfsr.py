@@ -1,3 +1,4 @@
+
 # train_dfsr.py
 import argparse
 from lightning import Trainer, seed_everything
@@ -9,10 +10,13 @@ from utils.models import DFSRNet
 from utils.loader import NanoDataLoader
 from utils.config import root_dir_2, vgg_path_2
 
+import os, torch
+
 root_dir = root_dir_2
 vgg_path = vgg_path_2
 
 def main():
+    torch.cuda.set_device(int(os.environ.get("LOCAL_RANK", 0)))
     parser = argparse.ArgumentParser()
     parser.add_argument("--nodes", type=int, default=1, help="number of compute nodes")
     parser.add_argument("--gpus",  type=int, default=1, help="GPUs per node")
